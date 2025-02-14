@@ -1,26 +1,20 @@
-> If you see this section, you've just created a repository using [PoC Innovation's Open-Source project template](https://github.com/PoCInnovation/open-source-project-template). Check the [getting started guide](./.github/getting-started.md).
+# MyRAT
 
-# [PROJECT'S NAME]
-
-[Project's description]
+The aim of this project is to create a RAT for mobile devices. The project will not be about installing a RAT on a mobile device, but rather about creating one yourself, with the aim of understanding how a RAT works. At first, the RAT could simply retrieve basic information, and later contain more advanced functionalities such as taking screenshots of the device and sending them to the server, ...
 
 ## How does it work?
 
-[Explain how this project is working]
+This project is divided into two distinct parts. 
+
+The first part is the server, developed in GoLang. Its initial purpose is simply to store the data it receives. In a second phase, it might be conceivable to send commands to the server in order to control the RAT's behavior remotely.
+
+The second part is the RAT itself. Initially, it will be possible simply to retrieve basic information from the mobile device and send it to the server. Eventually, it will be able to receive instructions from the server and thus be controlled remotely.
 
 ## Getting Started
 
-### Installation
+### Installation & Usage
 
-[Explain how to install all of the project's dependencies]
-
-### Quickstart
-
-[Explain how to run this project]
-
-### Usage
-
-[Explain how to use this project]
+To install the RAT, clone this repository and open it in Android Studio to compile and install the RAT on a mobile device.
 
 ## Get involved
 
@@ -31,11 +25,11 @@ If you're interested in how the project is organized at a higher level, please c
 ## Our PoC team ❤️
 
 Developers
-| [<img src="https://github.com/MrZalTy.png?size=85" width=85><br><sub>[Developer's name]</sub>](https://github.com/MrZalTy) | [<img src="https://github.com/MrZalTy.png?size=85" width=85><br><sub>[Developer's name]</sub>](https://github.com/MrZalTy) | [<img src="https://github.com/MrZalTy.png?size=85" width=85><br><sub>[Developer's name]</sub>](https://github.com/MrZalTy)
-| :---: | :---: | :---: |
+| [<img src="https://github.com/maitrecraft1234.png?size=85" width=85><br><sub>Victor J-M.</sub>](https://github.com/maitrecraft1234) | [<img src="https://github.com/hop3calypse.png?size=85" width=85><br><sub>Hugo H.</sub>](https://github.com/hop3calypse)
+| :---: | :---: |
 
 Manager
-| [<img src="https://github.com/adrienfort.png?size=85" width=85><br><sub>[Manager's name]</sub>](https://github.com/adrienfort)
+| [<img src="https://github.com/nl1x.png?size=85" width=85><br><sub>Nathan J.</sub>](https://github.com/nl1x)
 | :---: |
 
 <h2 align=center>
