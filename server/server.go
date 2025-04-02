@@ -366,7 +366,7 @@ func main() {
 					break
 				}
 				
-				message := parts[1]
+                message := parts[1] + "\n"
 				headerBuf := make([]byte, 5)
 				headerBuf[0] = TEXT_MESSAGE
 				binary.BigEndian.PutUint32(headerBuf[1:], uint32(len(message)))
